@@ -2,6 +2,7 @@ import time
 import threading
 import sys
 import os
+import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot import types
@@ -21,9 +22,17 @@ if sys.platform == "win32":
 class RenderHealthServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header("Content-type", "text/plain")
+        self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
-        self.wfile.write(b"Trade Guardian Bot is running 24/7 on Cloud!")
+        html = (
+            "<html><head><title>Trade Guardian Bot</title></head>"
+            "<body style='font-family:sans-serif;background:#0f172a;color:#f8fafc;padding:30px;'>"
+            "<h2>🛡️ Trade Guardian Telegram Bot</h2>"
+            "<p style='color:#22c55e;font-size:18px;'>🟢 <strong>Status: 24/7 Cloud Active</strong></p>"
+            "<p>Render free-tier sleep shield is active.</p>"
+            "</body></html>"
+        )
+        self.wfile.write(html.encode("utf-8"))
 
     def log_message(self, format, *args):
         pass  # Suppress HTTP request logs
@@ -38,6 +47,22 @@ def start_health_server():
         print(f"[*] Web Server notice: {e}")
 
 threading.Thread(target=start_health_server, daemon=True).start()
+
+def keep_alive_ping_loop():
+    """Pings the Render public URL every 10 minutes to prevent Free Tier idle sleep."""
+    time.sleep(20)  # Wait for startup
+    url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("KEEP_ALIVE_URL")
+    if url:
+        print(f"[*] Background keep-alive pinger started for: {url}")
+        while True:
+            try:
+                requests.get(url, timeout=15)
+                print(f"[*] Keep-alive ping sent to {url}")
+            except Exception as ex:
+                print(f"[!] Keep-alive ping error: {ex}")
+            time.sleep(600)  # Ping every 10 minutes
+
+threading.Thread(target=keep_alive_ping_loop, daemon=True).start()
 
 bot = telebot.TeleBot(config.TELEGRAM_BOT_TOKEN, parse_mode="Markdown")
 
